@@ -12,8 +12,11 @@ public sealed class DriveSettings
 
     public string? TokenDirectory { get; init; }
 
-    /// <summary>The only folder the tools can reach. Every path is resolved under it.</summary>
-    public required string RootFolderId { get; init; }
+    /// <summary>
+    /// Optional extra lock. When empty, "/" lists everything shared with the service account.
+    /// When set, the tools can only reach this one folder, even if more is shared.
+    /// </summary>
+    public string? RootFolderId { get; init; }
 
     public static DriveSettings Load(IConfiguration configuration)
     {
@@ -25,15 +28,12 @@ public sealed class DriveSettings
         if (string.IsNullOrWhiteSpace(rootFolderId) && configuration["EnvironmentName"] is { } environment)
             rootFolderId = configuration[$"Workspace:GoogleDriveRoots:{environment}"];
 
-        if (string.IsNullOrWhiteSpace(rootFolderId))
-            throw new InvalidOperationException("Set GoogleDrive:RootFolderId in the config file.");
-
         return new DriveSettings
         {
             ServiceAccountKeyFile = section["ServiceAccountKeyFile"],
             CredentialsFile = section["CredentialsFile"],
             TokenDirectory = section["TokenDirectory"],
-            RootFolderId = rootFolderId
+            RootFolderId = string.IsNullOrWhiteSpace(rootFolderId) ? null : rootFolderId
         };
     }
 }

@@ -1,14 +1,14 @@
 # scoped-google-drive-mcp
 
-A small C#/.NET MCP server that gives an AI agent access to **one Google Drive folder and nothing else**.
+A small C#/.NET MCP server that gives an AI agent access to **only the Google Drive files and folders you share with it**, and nothing else in your Drive.
 
-Most Drive connectors sign in as you and can see your entire Drive. This one signs in as a Google Cloud **service account**, which can only see folders you explicitly share with it. On top of that, the server resolves every path from a single root folder, so the agent can't reach anything outside it.
+Most Drive connectors sign in as you and can see your entire Drive. This one signs in as its own Google identity, a **service account** (think of it as a separate "Claude" user with its own email address). It starts with access to nothing. You grant access the same way you would to a colleague: share a folder or file with that email address.
 
 About 330 lines of code. Three tools.
 
 ## Why I built this
 
-I wanted Claude to work with files in my Google Drive, but I didn't want to give it access to *all* of my Google Drive. The standard connectors ask for the whole thing: every document, every folder, everything ever shared with me. I only needed it to see one working folder.
+I wanted Claude to work with files in my Google Drive, but I didn't want to give it access to *all* of my Google Drive. The standard connectors ask for the whole thing: every document, every folder, everything ever shared with me. I only wanted it to see the things I chose.
 
 It was also something fun to try. I wanted to see how small an MCP server could be in C#/.NET, and whether I could get least-privilege access to Drive without paying for Google Workspace. It turned out to be possible, with one real limit, which is described below.
 
@@ -16,49 +16,108 @@ It was also something fun to try. I wanted to see how small an MCP server could 
 
 | Tool | What it does |
 |---|---|
-| `list_folder` | Lists files and folders at a path, e.g. `/` or `/Projects/2026` |
+| `list_folder` | `/` lists everything shared with the Claude account; a path like `/Projects/2026` lists inside a shared folder |
 | `read_file` | Reads a file as text. Google Docs and Slides come back as plain text, Sheets as CSV |
 | `write_file` | Replaces the content of an **existing** text file or Google Doc |
 
 There is deliberately no "create file" tool (see [Limits](#limits)).
 
-## Two layers of scoping
+## What the agent can access
 
-1. **Identity.** The service account is its own identity, not you. Google only shows it what you've shared with its email address.
-2. **Code.** Paths are walked one name at a time from `RootFolderId`. `..` is rejected. There is no search-by-ID or "list everything" call.
+Access is controlled entirely by **Drive sharing**. Whatever is shared with the service account's email address, the agent can reach. Nothing else.
 
-Either layer alone limits access; together, a misconfiguration in one is still contained by the other.
+| You share... | The agent can reach... |
+|---|---|
+| A folder | That folder, every file and subfolder inside it, and anything added to it later |
+| A single file | Just that file |
+| Several folders and files | All of them; each appears at the top level under `/` |
+| Nothing | Nothing. `/` comes back empty |
+
+- **Viewer or Editor decides what it can do.** With Viewer, the agent can list and read. With Editor, it can also use `write_file` on existing files.
+- **Revoking access is just unsharing.** Remove the service account from a folder's sharing settings and the agent loses it on its next call. No restart or code change needed.
+- **Anyone can share with it.** If someone else shares a file with the service account's email, the agent can see that too. Keep the email address to yourself.
+- **Changes can take a minute.** Sharing usually takes effect within seconds, but occasionally a minute or two.
+
+### Optional extra lock: `RootFolderId`
+
+If you set `RootFolderId` in the config, the server treats that one folder as `/` and ignores everything else that's shared. Google still allows more, but this server won't use it. Leave it empty to use sharing alone.
+
+### How it's enforced
+
+1. **Identity (Google).** The service account isn't you. Google returns only what has been shared with it. This is the real boundary.
+2. **Code (this server).** Every path is resolved one name at a time from `/`. `..` is rejected, and there's no way to open a file by its ID, so the agent can't jump to something it found elsewhere.
 
 ## Setup
 
-### 1. Create the service account (Google Cloud Console)
+You need a Google account, about 15 minutes, and the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
-1. Create or pick a project.
-2. **APIs & Services → Library**: enable the **Google Drive API**.
-3. **IAM & Admin → Service Accounts → Create**. No project roles needed.
-4. On the account's **Keys** tab: **Add key → JSON**. Save it outside any synced folder. Treat it like a password.
+### 1. Create a Google Cloud project
 
-### 2. Share one folder with it
+1. Go to [console.cloud.google.com](https://console.cloud.google.com/) and sign in with your Google account.
+2. Click the project picker at the top → **New project**. Name it anything (e.g. `claude-drive`) → **Create**.
+3. Make sure the new project is selected in the project picker.
 
-In Google Drive, share the folder with the service account's email (`client_email` in the key file). Choose **Viewer** for read-only or **Editor** to allow `write_file`. Copy the folder ID from its URL (`drive.google.com/drive/folders/<id>`).
+There's no charge for this. The Drive API is free at personal-use volumes.
 
-### 3. Configure
+### 2. Enable the Drive API
 
-Copy `appsettings.example.json` somewhere outside the repo, fill in the key path and folder ID, and point `AI_WORKSPACE_CONFIG` at it (or put it next to the built exe as `appsettings.json`).
+1. **APIs & Services → Library**.
+2. Search for **Google Drive API** → **Enable**.
 
-### 4. Build and register with Claude
+That's the only API needed. Docs, Sheets and Slides are read through Drive's export feature.
+
+### 3. Create the service account (the "Claude user")
+
+1. **IAM & Admin → Service Accounts → Create service account**.
+2. Name: e.g. `claude-drive-access`. Google generates an email address such as `claude-drive-access@claude-drive.iam.gserviceaccount.com`. **This email address is the Claude user you'll share files with.**
+3. Skip the optional "grant access to project" and "grant users access" steps. It needs no project roles, because access is granted through Drive sharing instead.
+4. Click **Done**.
+
+### 4. Create a key (how the server signs in)
+
+1. Open the service account → **Keys** tab → **Add key → Create new key → JSON → Create**.
+2. A `.json` file downloads. It contains the account's private key.
+3. Move it somewhere private, for example `C:\Users\<you>\.config\claude-drive\service-account.json`.
+
+**Treat this file like a password.** Anyone who has it can act as the Claude user. Don't put it in this repo, a synced folder, or the Drive folder itself, and never paste its contents into a chat. If it leaks, delete the key in the Keys tab and create a new one.
+
+### 5. Share files and folders with the Claude user
+
+1. In Google Drive, right-click a folder or file → **Share**.
+2. Paste the service account's email address (also in the key file as `client_email`).
+3. Choose **Viewer** (read only) or **Editor** (read and write).
+4. Untick **Notify people** (the address can't receive email) → **Share**.
+
+Repeat for anything else you want the agent to reach.
+
+### 6. Configure the server
+
+Copy `appsettings.example.json` to somewhere outside the repo, e.g. `C:\Users\<you>\.config\claude-drive\appsettings.json`, and set the key path:
+
+```json
+{
+  "GoogleDrive": {
+    "ServiceAccountKeyFile": "C:\\Users\\<you>\\.config\\claude-drive\\service-account.json",
+    "RootFolderId": ""
+  }
+}
+```
+
+Leave `RootFolderId` empty to allow everything shared, or set it to one folder's ID (the last part of its URL, `drive.google.com/drive/folders/<id>`) to lock the server to that folder.
+
+### 7. Build and register with Claude
 
 ```bash
 dotnet build -c Release
 ```
 
-In `claude_desktop_config.json`:
+In Claude's desktop config file (**Settings → Developer → Edit Config**), add:
 
 ```json
 {
   "mcpServers": {
     "scoped-drive": {
-      "command": "C:\\path\\to\\scoped-drive-mcp\\src\\AI.Workspace.Mcp\\bin\\Release\\net10.0\\AI.Workspace.Mcp.exe",
+      "command": "C:\\path\\to\\scoped-google-drive-mcp\\src\\AI.Workspace.Mcp\\bin\\Release\\net10.0\\AI.Workspace.Mcp.exe",
       "env": {
         "AI_WORKSPACE_CONFIG": "C:\\Users\\<you>\\.config\\claude-drive\\appsettings.json"
       }
@@ -67,16 +126,29 @@ In `claude_desktop_config.json`:
 }
 ```
 
-Fully quit and reopen Claude; it reads this file only at startup.
+Fully quit and reopen Claude. It reads this file only at startup.
 
 For Claude Code: `claude mcp add scoped-drive -e AI_WORKSPACE_CONFIG=<path> -- <path-to-exe>`
 
+### 8. Check it works
+
+Ask Claude: *"List my Drive."*
+
+- **Working:** you see only what you shared. An empty shared folder still counts: if the folder itself shows up, sign-in and sharing both work.
+- **Not working:** an error about the key file or config means a path is wrong. An empty `/` usually means sharing hasn't taken effect yet (wait a minute) or you shared with a different email address.
+
+### Rotating the key
+
+There's no "re-authenticate" step for a service account. To replace a key: create a new one on the Keys tab, point `ServiceAccountKeyFile` at it, restart Claude, then delete the old key.
+
 ## Demo
 
-1. Share a folder containing a couple of files with the service account.
-2. Ask Claude: *"List my Drive."* It shows only that folder's contents.
-3. Ask: *"Read /notes.md and fix the typos."* It reads, edits and saves the existing file.
-4. Ask: *"Open my tax folder."* It can't, because that folder was never shared and is outside the root.
+1. Share a folder with a couple of files in it with the Claude user.
+2. Ask Claude: *"List my Drive."* It shows only that folder.
+3. Ask: *"Read notes.md in that folder and fix the typos."* It reads, edits and saves the existing file.
+4. While Claude is open, share a second file with the Claude user, then ask it to list again. The new file appears.
+5. Unshare the folder and ask again. It's gone.
+6. Ask: *"Open my tax folder."* It can't, because that folder was never shared.
 
 ## Limits
 
@@ -95,7 +167,7 @@ For Claude Code: `claude mcp add scoped-drive -e AI_WORKSPACE_CONFIG=<path> -- <
 | Workspace Shared Drives | Yes | Yes | Workspace | Too costly for this use |
 | Separate dedicated Gmail account | Yes | Manually | Free | Possible, not tested |
 
-**Service account + folder share (chosen).** It's free, works on a personal Gmail account, and access is limited to what you share. Reading, editing and renaming all work. The one gap is creating files. The workaround: create the file yourself, and let the agent fill it in.
+**Service account + folder share (chosen).** It's free, works on a personal Gmail account, and access is limited to the folders and files you share with it. Reading, editing and renaming all work. The one gap is creating files. The workaround: create the file yourself, and let the agent fill it in.
 
 **Google's official Drive connector (rejected).** It's built by Google and has full write access with no quota problem, because it acts as you. But it requests broad Drive access rather than folder-level access, which defeats the point.
 
@@ -109,7 +181,7 @@ For Claude Code: `claude mcp add scoped-drive -e AI_WORKSPACE_CONFIG=<path> -- <
 
 ## Optional: OAuth instead of a service account
 
-If `ServiceAccountKeyFile` is empty, the server falls back to a personal OAuth sign-in (`CredentialsFile` + `TokenDirectory`). The code still confines paths to `RootFolderId`, but the token itself can see your whole Drive, so only the code layer protects you.
+If `ServiceAccountKeyFile` is empty, the server falls back to signing in as you with OAuth (`CredentialsFile` + `TokenDirectory`), which opens a browser the first time. Your own token can see your whole Drive, so in this mode set `RootFolderId`: the code then confines every path to that folder, but only the code is protecting you. The service account is the recommended setup.
 
 ## Built with
 

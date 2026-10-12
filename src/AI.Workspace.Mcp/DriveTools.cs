@@ -8,7 +8,7 @@ namespace AI.Workspace.Mcp;
 public static class DriveTools
 {
     [McpServerTool(Name = "list_folder", ReadOnly = true)]
-    [Description("List the files and folders at a path inside the shared Google Drive folder. \"/\" is the shared folder itself.")]
+    [Description("List files and folders shared with this server's Google account. \"/\" lists everything shared; pass a folder path to look inside it.")]
     public static Task<string> ListFolder(
         DriveWorkspace workspace,
         [Description("Folder path, e.g. \"/\" or \"/Projects/2026\".")] string path = "/",

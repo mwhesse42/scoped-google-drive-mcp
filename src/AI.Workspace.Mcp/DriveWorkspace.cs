@@ -13,7 +13,10 @@ namespace AI.Workspace.Mcp;
 
 public sealed record DriveEntry(string Path, bool IsFolder, string MimeType, long? Size, DateTimeOffset? Modified);
 
-/// <summary>Google Drive access sandboxed to one root folder. Paths look like "/Projects/notes".</summary>
+/// <summary>
+/// Google Drive access limited to what has been shared with the signed-in account.
+/// "/" is either everything shared with it, or the configured RootFolderId. Paths look like "/Projects/notes".
+/// </summary>
 public sealed class DriveWorkspace(DriveSettings settings)
 {
     private const string FolderType = "application/vnd.google-apps.folder";
@@ -40,7 +43,7 @@ public sealed class DriveWorkspace(DriveSettings settings)
         do
         {
             var request = service.Files.List();
-            request.Q = $"'{folder.Id}' in parents and trashed = false";
+            request.Q = $"{ChildrenOf(folder)} and trashed = false";
             request.Fields = $"nextPageToken, files({Fields})";
             request.OrderBy = "folder,name";
             request.PageSize = 1000;
@@ -112,11 +115,11 @@ public sealed class DriveWorkspace(DriveSettings settings)
             : file;
     }
 
-    /// <summary>Walks the path one name at a time from the root, so nothing outside the root is reachable.</summary>
+    /// <summary>Walks the path one name at a time from "/", so only shared items (or the root folder) are reachable.</summary>
     private async Task<File> ResolveAsync(string path, CancellationToken ct)
     {
         var service = await GetDriveAsync(ct);
-        var current = new File { Id = settings.RootFolderId, Name = "/", MimeType = FolderType };
+        var current = Root();
 
         foreach (var name in WorkspacePath.Parts(path))
         {
@@ -124,7 +127,7 @@ public sealed class DriveWorkspace(DriveSettings settings)
                 throw new FileNotFoundException($"Not found: {path}");
 
             var request = service.Files.List();
-            request.Q = $"'{current.Id}' in parents and name = '{EscapeQuery(name)}' and trashed = false";
+            request.Q = $"{ChildrenOf(current)} and name = '{EscapeQuery(name)}' and trashed = false";
             request.Fields = $"files({Fields})";
             request.PageSize = 1;
 
@@ -180,6 +183,12 @@ public sealed class DriveWorkspace(DriveSettings settings)
             ct,
             new FileDataStore(settings.TokenDirectory, true));
     }
+
+    // Id = null marks the virtual "/" that holds everything shared with the account.
+    private File Root() => new() { Id = settings.RootFolderId, Name = "/", MimeType = FolderType };
+
+    private static string ChildrenOf(File folder) =>
+        folder.Id is null ? "sharedWithMe = true" : $"'{folder.Id}' in parents";
 
     private static DriveEntry ToEntry(File file, string path) =>
         new(path, file.MimeType == FolderType, file.MimeType, file.Size, file.ModifiedTimeDateTimeOffset);

@@ -156,33 +156,63 @@ For Claude Code: `claude mcp add scoped-drive -e SCOPED_DRIVE_CONFIG=<path> -- <
 
 Ask Claude: *"List my Drive."*
 
-- **Working:** you see only what you shared. An empty shared folder still counts: if the folder itself shows up, sign-in and sharing both work.
+- **Working:** you see only what you shared directly, e.g. just your shared folder. Ask Claude to look inside it to see its files. An empty shared folder still counts: if the folder itself shows up, sign-in and sharing both work.
 - **Not working:** an error about the key file or config means a path is wrong. An empty `/` usually means sharing hasn't taken effect yet (wait a minute) or you shared with a different email address.
 
 ### Test without Claude
 
-A small console app uses the same config and Drive code as the server, so you can check your key and sharing directly. Point it at your config with `--config`:
+A small console app uses the same config and Drive code as the server. Use it to check your key and sharing before involving Claude: if the console can see something, the server will see the same thing.
+
+**1. Make sure your config file exists.** For example, put `appsettings.json` next to your key in `C:\Users\<you>\.config\claude-drive\` (see [step 6](#6-configure-the-server)).
+
+**2. List what's shared:**
 
 ```bash
-dotnet run --project tools/ScopedDriveMcp.Console -- --config C:\Users\<you>\.config\claude-drive\appsettings.json list
-dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> list /Projects
-dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> read /Projects/notes.md
-dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> write /Projects/notes.md local-notes.md
+dotnet run --project tools/ScopedDriveMcp.Console -- --config C:/Users/<you>/.config/claude-drive/appsettings.json list
 ```
 
-Or set the environment variable once per terminal and leave `--config` off:
+`/` shows only the items shared **directly** with the service account. If you shared one folder, you'll see just that folder, not the files inside it. That's expected, and it means sign-in and sharing both work.
 
-```powershell
-# PowerShell
-$env:SCOPED_DRIVE_CONFIG = "C:\Users\<you>\.config\claude-drive\appsettings.json"
+**3. Look inside a shared folder** by using its name as the path:
+
+```bash
+dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> list "/My Shared Folder"
 ```
 
-```bat
-:: cmd
-set SCOPED_DRIVE_CONFIG=C:\Users\<you>\.config\claude-drive\appsettings.json
+**4. Read a file:**
+
+```bash
+dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> read "/My Shared Folder/notes.md"
 ```
 
-If `list` shows what you shared, the server will see the same thing.
+**5. Write to an existing file** (needs Editor access and `ReadOnly: false`). This replaces the file's content with a local file's:
+
+```bash
+dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> write "/My Shared Folder/notes.md" local-notes.md
+```
+
+**Tips**
+
+- **Paths with spaces need quotes**, e.g. `"/My Shared Folder"`.
+- **Git Bash strips backslashes.** Use forward slashes (`C:/Users/...`) or quote the path (`'C:\Users\...'`). PowerShell and cmd accept either.
+- **Skip `--config`** by setting the environment variable once per terminal:
+
+  ```powershell
+  # PowerShell
+  $env:SCOPED_DRIVE_CONFIG = "C:\Users\<you>\.config\claude-drive\appsettings.json"
+  ```
+
+  ```bat
+  :: cmd
+  set SCOPED_DRIVE_CONFIG=C:\Users\<you>\.config\claude-drive\appsettings.json
+  ```
+
+  ```bash
+  # Git Bash
+  export SCOPED_DRIVE_CONFIG=C:/Users/<you>/.config/claude-drive/appsettings.json
+  ```
+
+- **Empty folder listing:** the folder may really be empty, or sharing may still be taking effect (wait a minute and try again).
 
 ### Rotating the key
 

@@ -6,6 +6,12 @@ Most Drive connectors sign in as you and can see your entire Drive. This one sig
 
 About 330 lines of code. Three tools.
 
+## Why I built this
+
+I wanted Claude to work with files in my Google Drive, but I didn't want to give it access to *all* of my Google Drive. The standard connectors ask for the whole thing: every document, every folder, everything ever shared with me. I only needed it to see one working folder.
+
+It was also something fun to try. I wanted to see how small an MCP server could be in C#/.NET, and whether I could get least-privilege access to Drive without paying for Google Workspace. It turned out to be possible, with one real limit, which is described below.
+
 ## Tools
 
 | Tool | What it does |
@@ -80,13 +86,26 @@ For Claude Code: `claude mcp add scoped-drive -e AI_WORKSPACE_CONFIG=<path> -- <
 
 ## Options considered
 
-| Option | Verdict |
-|---|---|
-| Google's official Drive connector | Full write access, but sees your whole Drive |
-| Domain-wide delegation | Workspace-only, and it impersonates you, which means whole-Drive access again |
-| `drive.file` scope + Google Picker | The right model for per-file consent, but needs a Picker UI the connector doesn't have |
-| Workspace Shared Drives | Fixes file creation; requires a paid Workspace plan |
-| **Service account + folder share** | **Chosen**: free, scoped, works today, can't create files |
+| Option | Scoped? | Can create files? | Cost | Verdict |
+|---|---|---|---|---|
+| **Service account + folder share** | Yes | No | Free | **Chosen** |
+| Google's official Drive connector | No | Yes | Free | Rejected |
+| Domain-wide delegation | No | Yes | Workspace | Rejected |
+| `drive.file` scope + Google Picker | Yes | Yes | Free | Not available |
+| Workspace Shared Drives | Yes | Yes | Workspace | Too costly for this use |
+| Separate dedicated Gmail account | Yes | Manually | Free | Possible, not tested |
+
+**Service account + folder share (chosen).** It's free, works on a personal Gmail account, and access is limited to what you share. Reading, editing and renaming all work. The one gap is creating files. The workaround: create the file yourself, and let the agent fill it in.
+
+**Google's official Drive connector (rejected).** It's built by Google and has full write access with no quota problem, because it acts as you. But it requests broad Drive access rather than folder-level access, which defeats the point.
+
+**Domain-wide delegation / impersonation (rejected).** This lets a service account act as a real user, including creating files. It's only available on Google Workspace. Even there, it gives the service account that user's entire Drive, which is the same problem as the official connector.
+
+**`drive.file` scope + Google Picker (not available).** This is Google's own design for scoped access: the app only sees files you pick in a Picker dialog, and file creation works because it's your real account. It's the best model on paper, but the connector has to implement the Picker sign-in flow, and none of the options available to me did.
+
+**Workspace Shared Drives (too costly for this use).** Files in a Shared Drive belong to the drive, not a person, so a service account can create files there without hitting the quota limit. Shared Drives need a paid Google Workspace subscription, though. That's worth it only if the agent needs to create files often.
+
+**Separate dedicated Gmail account (possible, not tested).** Create a second free Gmail account that holds only the folder you share with the agent. You create new files by signing in to that account, and your main Drive stays out of reach. It's free, but you have to manage a second account and switch to it whenever you need a new file.
 
 ## Optional: OAuth instead of a service account
 

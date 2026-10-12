@@ -198,15 +198,17 @@ If `ServiceAccountKeyFile` is empty, the server falls back to signing in as you 
 src/ScopedDriveMcp/
   Program.cs          Host setup; registers the write tool only when not read-only
   DriveTools.cs       The three MCP tools
-  DriveWorkspace.cs   Google Drive calls: sign-in, path resolution, read, write
+  DriveWorkspace.cs   Path resolution, read and write rules (no Google types)
+  IDriveClient.cs     The three Drive calls the server needs: list, download, upload
+  GoogleDriveClient.cs  Real IDriveClient: sign-in and Google Drive API calls
   DrivePolicy.cs      Pure rules: query building and escaping, which files can be read or written, duplicate names
   DriveSettings.cs    Config loading
   WorkspacePath.cs    Path normalisation and traversal checks
 tests/ScopedDriveMcp.Tests/
-  Unit tests for DrivePolicy, WorkspacePath and DriveSettings
+  Unit tests; DriveWorkspace is tested against a Moq mock of IDriveClient
 ```
 
-The Drive calls themselves aren't unit tested; the rules that decide what the agent can reach are kept in `DrivePolicy` and `WorkspacePath` so they can be.
+`DriveWorkspace` depends on a narrow `IDriveClient` interface (list, download, upload) rather than Google's `DriveService`, which can't be mocked. `GoogleDriveClient` is the real implementation, registered through dependency injection; the tests inject a Moq mock instead. That covers path walking, duplicate names, size and type checks, and read-only refusal without calling Google.
 
 ## Built with
 

@@ -18,6 +18,7 @@ builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
 var settings = DriveSettings.Load(builder.Configuration);
 
 builder.Services.AddSingleton(settings);
+builder.Services.AddSingleton<IDriveClient, GoogleDriveClient>();
 builder.Services.AddSingleton<DriveWorkspace>();
 
 var mcp = builder.Services

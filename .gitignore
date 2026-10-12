@@ -1,0 +1,8 @@
+bin/
+obj/
+.vs/
+*.user
+appsettings.json
+*service-account*.json
+client_secret*.json
+tokens/

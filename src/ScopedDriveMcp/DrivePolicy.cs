@@ -10,9 +10,6 @@ internal static class DrivePolicy
 
     private const string GoogleNativePrefix = "application/vnd.google-apps.";
 
-    /// <summary>Largest file read_file will return, so one call can't flood the model's context.</summary>
-    public const long MaxReadBytes = 1_000_000;
-
     /// <summary>A null folder ID is the virtual "/" that holds everything shared with the account.</summary>
     public static string ChildrenQuery(string? folderId) =>
         $"{ChildrenOf(folderId)} and trashed = false";

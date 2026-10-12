@@ -123,7 +123,7 @@ public class DriveWorkspaceTests
     [Fact]
     public async Task Large_files_are_refused_before_download()
     {
-        GivenChild(null, "big.log", new DriveFile("l1", "big.log", "text/plain", Size: DrivePolicy.MaxReadBytes + 1));
+        GivenChild(null, "big.log", new DriveFile("l1", "big.log", "text/plain", Size: DriveSettings.DefaultMaxReadBytes + 1));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => Workspace().ReadTextAsync("/big.log", ct));
 
@@ -134,7 +134,7 @@ public class DriveWorkspaceTests
     public async Task Large_exports_are_refused()
     {
         GivenChild(null, "huge", new DriveFile("d1", "huge", Doc));
-        client.Setup(c => c.DownloadAsync("d1", "text/plain", ct)).ReturnsAsync(new byte[DrivePolicy.MaxReadBytes + 1]);
+        client.Setup(c => c.DownloadAsync("d1", "text/plain", ct)).ReturnsAsync(new byte[DriveSettings.DefaultMaxReadBytes + 1]);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => Workspace().ReadTextAsync("/huge", ct));
     }

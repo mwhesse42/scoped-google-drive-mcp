@@ -19,7 +19,7 @@ It was also something fun to try. I wanted to see how small an MCP server could 
 | Tool | What it does |
 |---|---|
 | `list_folder` | `/` lists everything shared with the Claude account; a path like `/Projects/2026` lists inside a shared folder |
-| `read_file` | Reads a file as text. Google Docs and Slides come back as plain text, Sheets as CSV. Binary files (PDFs, images) are refused, and so is anything over 1 MB |
+| `read_file` | Reads a file as text. Google Docs and Slides come back as plain text, Sheets as CSV. Binary files (PDFs, images) are refused, and so is anything over `MaxReadBytes` (1 MB by default) |
 | `write_file` | Replaces the content of an **existing** text file or Google Doc. Not offered at all in read-only mode |
 
 There is deliberately no "create file" tool (see [Limits](#limits)).
@@ -106,10 +106,23 @@ Copy `appsettings.example.json` to somewhere outside the repo, e.g. `C:\Users\<y
   "GoogleDrive": {
     "ServiceAccountKeyFile": "C:\\Users\\<you>\\.config\\claude-drive\\service-account.json",
     "RootFolderId": "",
-    "ReadOnly": false
+    "ReadOnly": false,
+    "MaxReadBytes": 1000000
   }
 }
 ```
+
+All settings:
+
+| Setting | Required | Default | What it does |
+|---|---|---|---|
+| `ServiceAccountKeyFile` | Yes* | none | Path to the service account's JSON key |
+| `RootFolderId` | No | empty | Lock the server to one folder; empty means everything shared |
+| `ReadOnly` | No | `false` | Read-only Drive permission and no `write_file` tool |
+| `MaxReadBytes` | No | `1000000` | Largest file `read_file` will return |
+| `CredentialsFile`, `TokenDirectory` | Only for OAuth | none | Personal OAuth sign-in instead of a service account |
+
+\*Or both OAuth settings. The config file's location comes from the `SCOPED_DRIVE_CONFIG` environment variable, or `appsettings.json` next to the exe.
 
 Set `ReadOnly` to `true` if the agent should only read. Leave `RootFolderId` empty to allow everything shared, or set it to one folder's ID (the last part of its URL, `drive.google.com/drive/folders/<id>`) to lock the server to that folder.
 

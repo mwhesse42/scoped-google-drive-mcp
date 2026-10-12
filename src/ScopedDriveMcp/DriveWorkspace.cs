@@ -51,14 +51,14 @@ public sealed class DriveWorkspace(IDriveClient client, DriveSettings settings)
         if (!DrivePolicy.IsReadable(file.MimeType))
             throw new NotSupportedException($"{path} is {file.MimeType}; only text files, Google Docs, Sheets and Slides can be read.");
 
-        if (file.Size > DrivePolicy.MaxReadBytes)
-            throw new InvalidOperationException($"{path} is {file.Size:N0} bytes; the limit is {DrivePolicy.MaxReadBytes:N0}.");
+        if (file.Size > settings.MaxReadBytes)
+            throw new InvalidOperationException($"{path} is {file.Size:N0} bytes; the limit is {settings.MaxReadBytes:N0}.");
 
         var bytes = await client.DownloadAsync(file.Id!, DrivePolicy.ExportTypeFor(file.MimeType), ct);
 
         // Google-native files report no size up front, so check the exported text too.
-        if (bytes.Length > DrivePolicy.MaxReadBytes)
-            throw new InvalidOperationException($"{path} exports to {bytes.Length:N0} bytes; the limit is {DrivePolicy.MaxReadBytes:N0}.");
+        if (bytes.Length > settings.MaxReadBytes)
+            throw new InvalidOperationException($"{path} exports to {bytes.Length:N0} bytes; the limit is {settings.MaxReadBytes:N0}.");
 
         return Encoding.UTF8.GetString(bytes);
     }

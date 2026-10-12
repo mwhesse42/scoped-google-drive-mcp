@@ -21,6 +21,11 @@ public sealed class DriveSettings
     /// <summary>Request read-only Drive access and don't offer the write tool.</summary>
     public bool ReadOnly { get; init; }
 
+    public const long DefaultMaxReadBytes = 1_000_000;
+
+    /// <summary>Largest file read_file will return, so one call can't flood the model's context.</summary>
+    public long MaxReadBytes { get; init; } = DefaultMaxReadBytes;
+
     public static DriveSettings Load(IConfiguration configuration)
     {
         var section = configuration.GetSection("GoogleDrive");
@@ -31,7 +36,10 @@ public sealed class DriveSettings
             CredentialsFile = Blank(section["CredentialsFile"]),
             TokenDirectory = Blank(section["TokenDirectory"]),
             RootFolderId = Blank(section["RootFolderId"]),
-            ReadOnly = bool.TryParse(section["ReadOnly"], out var readOnly) && readOnly
+            ReadOnly = bool.TryParse(section["ReadOnly"], out var readOnly) && readOnly,
+            MaxReadBytes = long.TryParse(section["MaxReadBytes"], out var maxReadBytes) && maxReadBytes > 0
+                ? maxReadBytes
+                : DefaultMaxReadBytes
         };
     }
 

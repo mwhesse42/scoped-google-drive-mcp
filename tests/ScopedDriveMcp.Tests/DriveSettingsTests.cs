@@ -23,6 +23,14 @@ public class DriveSettingsTests
         Assert.Equal("abc123", Load(("RootFolderId", " abc123 ")).RootFolderId);
 
     [Theory]
+    [InlineData(null, DriveSettings.DefaultMaxReadBytes)]
+    [InlineData("250000", 250_000L)]
+    [InlineData("0", DriveSettings.DefaultMaxReadBytes)]
+    [InlineData("lots", DriveSettings.DefaultMaxReadBytes)]
+    public void MaxReadBytes_uses_the_config_value_or_the_default(string? value, long expected) =>
+        Assert.Equal(expected, Load(("MaxReadBytes", value)).MaxReadBytes);
+
+    [Theory]
     [InlineData("true", true)]
     [InlineData("True", true)]
     [InlineData("false", false)]

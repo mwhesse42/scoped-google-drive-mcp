@@ -161,15 +161,25 @@ Ask Claude: *"List my Drive."*
 
 ### Test without Claude
 
-A small console app uses the same config and Drive code as the server, so you can check your key and sharing directly:
+A small console app uses the same config and Drive code as the server, so you can check your key and sharing directly. Point it at your config with `--config`:
 
 ```bash
-set SCOPED_DRIVE_CONFIG=C:\Users\<you>\.config\claude-drive\appsettings.json
+dotnet run --project tools/ScopedDriveMcp.Console -- --config C:\Users\<you>\.config\claude-drive\appsettings.json list
+dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> list /Projects
+dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> read /Projects/notes.md
+dotnet run --project tools/ScopedDriveMcp.Console -- --config <config> write /Projects/notes.md local-notes.md
+```
 
-dotnet run --project tools/ScopedDriveMcp.Console -- list
-dotnet run --project tools/ScopedDriveMcp.Console -- list /Projects
-dotnet run --project tools/ScopedDriveMcp.Console -- read /Projects/notes.md
-dotnet run --project tools/ScopedDriveMcp.Console -- write /Projects/notes.md local-notes.md
+Or set the environment variable once per terminal and leave `--config` off:
+
+```powershell
+# PowerShell
+$env:SCOPED_DRIVE_CONFIG = "C:\Users\<you>\.config\claude-drive\appsettings.json"
+```
+
+```bat
+:: cmd
+set SCOPED_DRIVE_CONFIG=C:\Users\<you>\.config\claude-drive\appsettings.json
 ```
 
 If `list` shows what you shared, the server will see the same thing.

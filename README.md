@@ -146,6 +146,21 @@ Ask Claude: *"List my Drive."*
 - **Working:** you see only what you shared. An empty shared folder still counts: if the folder itself shows up, sign-in and sharing both work.
 - **Not working:** an error about the key file or config means a path is wrong. An empty `/` usually means sharing hasn't taken effect yet (wait a minute) or you shared with a different email address.
 
+### Test without Claude
+
+A small console app uses the same config and Drive code as the server, so you can check your key and sharing directly:
+
+```bash
+set SCOPED_DRIVE_CONFIG=C:\Users\<you>\.config\claude-drive\appsettings.json
+
+dotnet run --project tools/ScopedDriveMcp.Console -- list
+dotnet run --project tools/ScopedDriveMcp.Console -- list /Projects
+dotnet run --project tools/ScopedDriveMcp.Console -- read /Projects/notes.md
+dotnet run --project tools/ScopedDriveMcp.Console -- write /Projects/notes.md local-notes.md
+```
+
+If `list` shows what you shared, the server will see the same thing.
+
 ### Rotating the key
 
 There's no "re-authenticate" step for a service account. To replace a key: create a new one on the Keys tab, point `ServiceAccountKeyFile` at it, restart Claude, then delete the old key.
@@ -204,6 +219,8 @@ src/ScopedDriveMcp/
   DrivePolicy.cs      Pure rules: query building and escaping, which files can be read or written, duplicate names
   DriveSettings.cs    Config loading
   WorkspacePath.cs    Path normalisation and traversal checks
+tools/ScopedDriveMcp.Console/
+  Console app to list, read and write directly, without Claude
 tests/ScopedDriveMcp.Tests/
   Unit tests; DriveWorkspace is tested against a Moq mock of IDriveClient
 ```

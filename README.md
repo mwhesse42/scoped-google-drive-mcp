@@ -284,6 +284,8 @@ tests/ScopedDriveMcp.Tests/
 
 .NET 10 · [ModelContextProtocol C# SDK](https://github.com/modelcontextprotocol/csharp-sdk) 1.4 · Google.Apis.Drive.v3
 
+Built with [Claude Code](https://claude.com/claude-code): I directed the design and reviewed every change; Claude wrote much of the code and tests.
+
 ## License
 
 MIT

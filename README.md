@@ -1,4 +1,4 @@
-# scoped-drive-mcp
+# scoped-google-drive-mcp
 
 A small C#/.NET MCP server that gives an AI agent access to **one Google Drive folder and nothing else**.
 

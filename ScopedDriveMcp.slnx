@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ScopedDriveMcp/ScopedDriveMcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ScopedDriveMcp.Tests/ScopedDriveMcp.Tests.csproj" />
+  </Folder>
+</Solution>

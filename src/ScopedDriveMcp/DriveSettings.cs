@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Configuration;
 
-namespace AI.Workspace.Mcp;
+namespace ScopedDriveMcp;
 
 public sealed class DriveSettings
 {
-    /// <summary>Service account JSON key. Preferred: it can only see folders shared with it.</summary>
+    /// <summary>Service account JSON key. Preferred: it can only see what is shared with it.</summary>
     public string? ServiceAccountKeyFile { get; init; }
 
     /// <summary>OAuth client secrets file. Used only when no service account key is set.</summary>
@@ -18,22 +18,22 @@ public sealed class DriveSettings
     /// </summary>
     public string? RootFolderId { get; init; }
 
+    /// <summary>Request read-only Drive access and don't offer the write tool.</summary>
+    public bool ReadOnly { get; init; }
+
     public static DriveSettings Load(IConfiguration configuration)
     {
         var section = configuration.GetSection("GoogleDrive");
 
-        // Accept a direct RootFolderId, or the older EnvironmentName + Workspace:GoogleDriveRoots layout.
-        var rootFolderId = section["RootFolderId"];
-
-        if (string.IsNullOrWhiteSpace(rootFolderId) && configuration["EnvironmentName"] is { } environment)
-            rootFolderId = configuration[$"Workspace:GoogleDriveRoots:{environment}"];
-
         return new DriveSettings
         {
-            ServiceAccountKeyFile = section["ServiceAccountKeyFile"],
-            CredentialsFile = section["CredentialsFile"],
-            TokenDirectory = section["TokenDirectory"],
-            RootFolderId = string.IsNullOrWhiteSpace(rootFolderId) ? null : rootFolderId
+            ServiceAccountKeyFile = Blank(section["ServiceAccountKeyFile"]),
+            CredentialsFile = Blank(section["CredentialsFile"]),
+            TokenDirectory = Blank(section["TokenDirectory"]),
+            RootFolderId = Blank(section["RootFolderId"]),
+            ReadOnly = bool.TryParse(section["ReadOnly"], out var readOnly) && readOnly
         };
     }
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

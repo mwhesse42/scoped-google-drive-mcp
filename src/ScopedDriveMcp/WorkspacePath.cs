@@ -1,4 +1,4 @@
-namespace AI.Workspace.Mcp;
+namespace ScopedDriveMcp;
 
 public static class WorkspacePath
 {

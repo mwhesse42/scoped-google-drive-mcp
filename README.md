@@ -1,10 +1,12 @@
 # scoped-google-drive-mcp
 
+[![CI](https://github.com/mwhesse42/scoped-google-drive-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/mwhesse42/scoped-google-drive-mcp/actions/workflows/ci.yml)
+
 A small C#/.NET MCP server that gives an AI agent access to **only the Google Drive files and folders you share with it**, and nothing else in your Drive.
 
 Most Drive connectors sign in as you and can see your entire Drive. This one signs in as its own Google identity, a **service account** (think of it as a separate "Claude" user with its own email address). It starts with access to nothing. You grant access the same way you would to a colleague: share a folder or file with that email address.
 
-About 330 lines of code. Three tools.
+About 400 lines of code, three tools, and unit tests for the rules that keep it scoped.
 
 ## Why I built this
 
@@ -17,8 +19,8 @@ It was also something fun to try. I wanted to see how small an MCP server could 
 | Tool | What it does |
 |---|---|
 | `list_folder` | `/` lists everything shared with the Claude account; a path like `/Projects/2026` lists inside a shared folder |
-| `read_file` | Reads a file as text. Google Docs and Slides come back as plain text, Sheets as CSV |
-| `write_file` | Replaces the content of an **existing** text file or Google Doc |
+| `read_file` | Reads a file as text. Google Docs and Slides come back as plain text, Sheets as CSV. Binary files (PDFs, images) are refused, and so is anything over 1 MB |
+| `write_file` | Replaces the content of an **existing** text file or Google Doc. Not offered at all in read-only mode |
 
 There is deliberately no "create file" tool (see [Limits](#limits)).
 
@@ -42,10 +44,15 @@ Access is controlled entirely by **Drive sharing**. Whatever is shared with the 
 
 If you set `RootFolderId` in the config, the server treats that one folder as `/` and ignores everything else that's shared. Google still allows more, but this server won't use it. Leave it empty to use sharing alone.
 
+### Optional: read-only mode
+
+Set `"ReadOnly": true` and the server asks Google only for read-only Drive permission, and doesn't register `write_file` at all, so the agent never sees a write tool. Even if a folder is shared as Editor, this server can't change it.
+
 ### How it's enforced
 
 1. **Identity (Google).** The service account isn't you. Google returns only what has been shared with it. This is the real boundary.
-2. **Code (this server).** Every path is resolved one name at a time from `/`. `..` is rejected, and there's no way to open a file by its ID, so the agent can't jump to something it found elsewhere.
+2. **Permission requested.** In read-only mode the server asks Google for read-only access, so even an Editor share can't be used to write.
+3. **Code (this server).** Every path is resolved one name at a time from `/`. `..` is rejected, and there's no way to open a file by its ID, so the agent can't jump to something it found elsewhere. If two items in a folder share a name, the server returns an error rather than guessing which one was meant.
 
 ## Setup
 
@@ -98,17 +105,19 @@ Copy `appsettings.example.json` to somewhere outside the repo, e.g. `C:\Users\<y
 {
   "GoogleDrive": {
     "ServiceAccountKeyFile": "C:\\Users\\<you>\\.config\\claude-drive\\service-account.json",
-    "RootFolderId": ""
+    "RootFolderId": "",
+    "ReadOnly": false
   }
 }
 ```
 
-Leave `RootFolderId` empty to allow everything shared, or set it to one folder's ID (the last part of its URL, `drive.google.com/drive/folders/<id>`) to lock the server to that folder.
+Set `ReadOnly` to `true` if the agent should only read. Leave `RootFolderId` empty to allow everything shared, or set it to one folder's ID (the last part of its URL, `drive.google.com/drive/folders/<id>`) to lock the server to that folder.
 
 ### 7. Build and register with Claude
 
 ```bash
 dotnet build -c Release
+dotnet test
 ```
 
 In Claude's desktop config file (**Settings → Developer → Edit Config**), add:
@@ -117,9 +126,9 @@ In Claude's desktop config file (**Settings → Developer → Edit Config**), ad
 {
   "mcpServers": {
     "scoped-drive": {
-      "command": "C:\\path\\to\\scoped-google-drive-mcp\\src\\AI.Workspace.Mcp\\bin\\Release\\net10.0\\AI.Workspace.Mcp.exe",
+      "command": "C:\\path\\to\\scoped-google-drive-mcp\\src\\ScopedDriveMcp\\bin\\Release\\net10.0\\ScopedDriveMcp.exe",
       "env": {
-        "AI_WORKSPACE_CONFIG": "C:\\Users\\<you>\\.config\\claude-drive\\appsettings.json"
+        "SCOPED_DRIVE_CONFIG": "C:\\Users\\<you>\\.config\\claude-drive\\appsettings.json"
       }
     }
   }
@@ -128,7 +137,7 @@ In Claude's desktop config file (**Settings → Developer → Edit Config**), ad
 
 Fully quit and reopen Claude. It reads this file only at startup.
 
-For Claude Code: `claude mcp add scoped-drive -e AI_WORKSPACE_CONFIG=<path> -- <path-to-exe>`
+For Claude Code: `claude mcp add scoped-drive -e SCOPED_DRIVE_CONFIG=<path> -- <path-to-exe>`
 
 ### 8. Check it works
 
@@ -182,6 +191,22 @@ There's no "re-authenticate" step for a service account. To replace a key: creat
 ## Optional: OAuth instead of a service account
 
 If `ServiceAccountKeyFile` is empty, the server falls back to signing in as you with OAuth (`CredentialsFile` + `TokenDirectory`), which opens a browser the first time. Your own token can see your whole Drive, so in this mode set `RootFolderId`: the code then confines every path to that folder, but only the code is protecting you. The service account is the recommended setup.
+
+## Project layout
+
+```
+src/ScopedDriveMcp/
+  Program.cs          Host setup; registers the write tool only when not read-only
+  DriveTools.cs       The three MCP tools
+  DriveWorkspace.cs   Google Drive calls: sign-in, path resolution, read, write
+  DrivePolicy.cs      Pure rules: query building and escaping, which files can be read or written, duplicate names
+  DriveSettings.cs    Config loading
+  WorkspacePath.cs    Path normalisation and traversal checks
+tests/ScopedDriveMcp.Tests/
+  Unit tests for DrivePolicy, WorkspacePath and DriveSettings
+```
+
+The Drive calls themselves aren't unit tested; the rules that decide what the agent can reach are kept in `DrivePolicy` and `WorkspacePath` so they can be.
 
 ## Built with
 
